@@ -38,6 +38,8 @@ remote-agent/deps/
 *.dylib
 *.bin
 *.zip
+dist/
+release/generated/
 
 # Editors and operating systems
 .idea/

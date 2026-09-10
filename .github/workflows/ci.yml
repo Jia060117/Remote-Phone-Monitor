@@ -19,3 +19,4 @@ jobs:
           cache-dependency-path: server/requirements*.txt
       - run: pip install -r server/requirements.txt -r server/requirements-dev.txt
       - run: python server/test_config_sync.py
+      - run: python -m py_compile release/initialize.py release/build_release.py

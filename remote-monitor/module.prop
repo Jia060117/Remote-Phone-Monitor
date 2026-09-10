@@ -1,6 +1,6 @@
 id=remote-monitor
 name=Remote Phone Monitor
-version=v3.0.0
-versionCode=3
+version=v1.0.0
+versionCode=100
 author=Remote Phone Monitor contributors
 description=Consent-based periodic screen capture and HTTPS upload for owned devices. Works with Magisk and KernelSU.

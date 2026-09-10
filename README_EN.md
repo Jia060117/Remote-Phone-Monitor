@@ -33,6 +33,7 @@ server/              FastAPI server, web UI, and regression tests
 docs/design.md       Architecture and design notes
 BUILD.md             Complete build and deployment guide
 SECURITY.md          Security and privacy requirements
+THIRD_PARTY_NOTICES.md  Third-party dependency licenses
 ```
 
 Build artifacts, dependency caches, virtual environments, databases, captures,
@@ -40,6 +41,18 @@ logs, tokens, and deployment configuration are excluded through `.gitignore`
 and are not part of the source release.
 
 ## Quick start
+
+For a prebuilt release, download `Remote-Phone-Monitor-v1.0.0-bundle.zip` from
+GitHub Releases, extract it, and run:
+
+```bash
+python3 initialize.py --server-url https://your-server.example
+```
+
+The initializer generates a unique device token, a random administrator
+password, and a session secret locally. It then creates the final installable
+module with matching authentication settings. The public release does not ship
+one fixed secret shared by every user.
 
 ### 1. Start the server
 
@@ -191,3 +204,6 @@ issue or log.
 ## License
 
 [MIT](LICENSE)
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for licenses covering
+dependencies included in prebuilt binaries.

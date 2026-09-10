@@ -29,12 +29,23 @@ server/              FastAPI 服务、Web UI 与回归测试
 docs/design.md       架构设计
 BUILD.md             完整构建与部署说明
 SECURITY.md          安全与隐私部署要求
+THIRD_PARTY_NOTICES.md  第三方依赖许可证说明
 ```
 
 构建产物、依赖缓存、虚拟环境、数据库、截图、日志、令牌和部署配置均被
 `.gitignore` 排除，不属于源码发布内容。
 
 ## 快速开始
+
+希望直接使用已编译版本时，请下载 GitHub Releases 中的
+`Remote-Phone-Monitor-v1.0.0-bundle.zip`。解压后运行：
+
+```bash
+python initialize.py --server-url https://你的服务地址
+```
+
+初始化程序会在本机生成唯一设备 token、随机管理密码和会话密钥，并输出已写入相同
+鉴权信息的最终可安装模块。公开 Release 中不包含所有用户共用的固定密钥。
 
 ### 1. 启动服务端
 
@@ -171,3 +182,5 @@ python test_config_sync.py
 ## 许可证
 
 [MIT](LICENSE)
+
+预编译二进制所含依赖的许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
