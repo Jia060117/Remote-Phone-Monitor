@@ -1,0 +1,47 @@
+# Remote Phone Monitor —— Ubuntu systemd 服务单元
+#
+# 安装步骤（在 Ubuntu 服务器上，假设仓库位于 /opt/remote-phone-monitor）：
+#   1. 创建虚拟环境并安装依赖：
+#        cd /opt/remote-phone-monitor/server
+#        python3 -m venv .venv
+#        .venv/bin/pip install -r requirements.txt
+#   2. 准备 tokens.json 和 server.json（分别参考对应的 .example 文件）。
+#   3. 把本文件放到 /etc/systemd/system/remote-monitor.service
+#      （注意：把下面 WorkingDirectory / ExecStart / Environment 中的路径改成本机实际路径）
+#   4. 启用并启动：
+#        sudo systemctl daemon-reload
+#        sudo systemctl enable --now remote-monitor
+#   5. 查看状态 / 日志：
+#        sudo systemctl status remote-monitor
+#        sudo journalctl -u remote-monitor -f
+#
+# 说明：
+#   --workers 1 是刻意设置的——服务端使用 SQLite，多 worker 并发写会触发
+#   "database is locked"。单 worker 配合每请求独立连接即可稳定运行。
+#   如需更高并发，请改用 PostgreSQL 并相应调整 main.py 的 DB 层。
+
+[Unit]
+Description=Remote Phone Monitor Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/remote-phone-monitor/server
+ExecStart=/opt/remote-phone-monitor/server/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
+Environment=DB_PATH=/opt/remote-phone-monitor/server/shots.db
+Environment=STORE_DIR=/opt/remote-phone-monitor/server/store
+Environment=TOKENS_FILE=/opt/remote-phone-monitor/server/tokens.json
+Environment=SERVER_CONFIG=/opt/remote-phone-monitor/server/server.json
+# 可选：在 /etc/remote-phone-monitor.env 中设置 ADMIN_PASSWORD、SESSION_SECRET
+# 或用于 API 自动化的 ADMIN_TOKEN。该文件权限建议设为 0600。
+EnvironmentFile=-/etc/remote-phone-monitor.env
+Restart=always
+RestartSec=5
+# 若以非 root 用户运行，请确保该用户对 WorkingDirectory 有读写权限
+User=www-data
+Group=www-data
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

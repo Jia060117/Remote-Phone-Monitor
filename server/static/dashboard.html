@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Phone Monitor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+        }
+        h1 {
+            color: #4a9eff;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #222;
+        }
+        .status {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            color: #888;
+        }
+        .status .online { color: #4caf50; }
+        .status .offline { color: #f44336; }
+
+        /* 最新截图区域 */
+        .latest-section {
+            margin-bottom: 30px;
+        }
+        .latest-section h2 {
+            color: #aaa;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .latest-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        .latest-image {
+            max-width: 360px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: #111;
+        }
+        .latest-image img {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+        }
+        .latest-meta {
+            background: #151515;
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 250px;
+        }
+        .latest-meta .label {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .latest-meta .value {
+            color: #e0e0e0;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        /* 时间轴区域 */
+        .timeline-section {
+            margin-top: 30px;
+        }
+        .timeline-section h2 {
+            color: #aaa;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .timeline {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .timeline img {
+            width: 120px;
+            height: auto;
+            min-height: 80px;       /* 无宽高数据时的占位兜底，保证懒加载生效 */
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0.7;
+        }
+        .timeline img:hover {
+            opacity: 1;
+            border-color: #4a9eff;
+            transform: scale(1.05);
+        }
+
+        /* 加载状态 */
+        .loading {
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+        .error {
+            color: #f44336;
+            padding: 10px;
+            background: #1a0000;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        /* 控制栏 */
+        .controls {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .controls button {
+            background: #1a1a1a;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .controls button:hover {
+            background: #222;
+            border-color: #4a9eff;
+        }
+        .controls button.active {
+            background: #4a9eff;
+            color: #fff;
+            border-color: #4a9eff;
+        }
+        .controls select {
+            background: #1a1a1a;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        /* 弹窗 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.show { display: flex; }
+        .modal img {
+            max-width: 90%;
+            max-height: 90vh;
+            border-radius: 8px;
+        }
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            font-size: 30px;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📱 Remote Phone Monitor</h1>
+        <div class="status">
+            <span>设备: <strong id="device-name">-</strong></span>
+            <span>状态: <span id="status" class="offline">离线</span></span>
+            <span>上次更新: <span id="last-update">-</span></span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <select id="device-select">
+            <option value="DEVICE_A">DEVICE_A</option>
+        </select>
+        <button id="btn-refresh" onclick="refresh()">🔄 刷新</button>
+        <button id="btn-auto" onclick="toggleAuto()">⏱ 自动刷新: 开</button>
+        <button id="btn-realtime" onclick="toggleRealtime()">📹 实时查看</button>
+        <a href="/admin" style="text-decoration:none;"><button>🛠 管理后台</button></a>
+        <a href="/logout" style="text-decoration:none;"><button>🚪 退出登录</button></a>
+    </div>
+
+    <div class="latest-section">
+        <h2>最新截图</h2>
+        <div class="latest-container">
+            <div class="latest-image">
+                <img id="current-img" src="" alt="最新截图">
+            </div>
+            <div class="latest-meta">
+                <div class="label">时间</div>
+                <div class="value" id="meta-time">-</div>
+                <div class="label">尺寸</div>
+                <div class="value" id="meta-size">-</div>
+                <div class="label">文件大小</div>
+                <div class="value" id="meta-filesize">-</div>
+                <div class="label">Hash</div>
+                <div class="value" id="meta-hash">-</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="timeline-section">
+        <h2>时间轴 <span id="timeline-count"></span></h2>
+        <div class="timeline" id="timeline"></div>
+    </div>
+
+    <!-- 图片弹窗 -->
+    <div class="modal" id="modal" onclick="closeModal()">
+        <button class="modal-close" onclick="closeModal()">✕</button>
+        <img id="modal-img" src="" alt="放大查看">
+    </div>
+
+    <script>
+        // 状态
+        let autoRefresh = true;
+        let refreshTimer = null;
+        let currentDevice = 'DEVICE_A';
+
+        // 初始化
+        async function init() {
+            await loadDevices();
+            await refresh();
+            startAutoRefresh();
+        }
+
+        // 加载设备列表
+        async function loadDevices() {
+            try {
+                const res = await fetch('/api/devices');
+                const devices = await res.json();
+                const select = document.getElementById('device-select');
+                select.innerHTML = '';
+                if (devices.length === 0) {
+                    select.innerHTML = '<option value="DEVICE_A">DEVICE_A</option>';
+                } else {
+                    devices.forEach(d => {
+                        const opt = document.createElement('option');
+                        opt.value = d.device;
+                        opt.textContent = `${d.device} (${d.shot_count} 张)`;
+                        select.appendChild(opt);
+                    });
+                }
+                select.onchange = () => {
+                    currentDevice = select.value;
+                    refresh();
+                };
+            } catch (e) {
+                console.error('Failed to load devices:', e);
+            }
+        }
+
+        // 刷新数据
+        async function refresh() {
+            try {
+                await Promise.all([loadLatest(), loadHistory()]);
+                updateStatus(true);
+            } catch (e) {
+                console.error('Refresh failed:', e);
+                updateStatus(false);
+            }
+        }
+
+        // 加载最新截图
+        async function loadLatest() {
+            // 实时查看模式下不覆盖 img.src（MJPEG 流正在播放）
+            if (liveMode) return;
+
+            const res = await fetch(`/api/latest?device=${currentDevice}`);
+            const data = await res.json();
+
+            if (data.path) {
+                document.getElementById('current-img').src = `/img/${data.path}?t=${data.ts}`;
+                document.getElementById('meta-time').textContent = new Date(data.ts).toLocaleString();
+                document.getElementById('meta-size').textContent = `${data.width || '?'} × ${data.height || '?'}`;
+                document.getElementById('meta-filesize').textContent = data.size_kb ? `${data.size_kb.toFixed(1)} KB` : '-';
+                document.getElementById('meta-hash').textContent = data.hash || '-';
+                document.getElementById('last-update').textContent = new Date(data.ts).toLocaleTimeString();
+            }
+        }
+
+            // 加载历史时间轴
+        async function loadHistory() {
+            const res = await fetch(`/api/history?device=${currentDevice}&limit=120`);
+            const data = await res.json();
+
+            const timeline = document.getElementById('timeline');
+            document.getElementById('timeline-count').textContent = `(${data.length} 张)`;
+
+            // 与 admin 后台一致：原生懒加载，仅滚动到可视区域的图片才请求，
+            // 避免页面初始化时一次性拉取全部时间轴图片。
+            // aspect-ratio 用数据库宽高给未加载的图占位，防止高度塌陷导致
+            // 全部图片被判定为"在视口内"而提前加载（懒加载失效）。
+            timeline.innerHTML = data.map(s => {
+                const ar = (s.width && s.height) ? `aspect-ratio:${s.width}/${s.height};` : '';
+                return `<img src="/img/${s.path}" loading="lazy" decoding="async" style="${ar}" title="${new Date(s.ts).toLocaleString()}" onclick="showModal('/img/${s.path}')">`;
+            }).join('');
+        }
+
+        // 更新状态指示
+        function updateStatus(online) {
+            const statusEl = document.getElementById('status');
+            if (online) {
+                statusEl.textContent = '在线';
+                statusEl.className = 'online';
+            } else {
+                statusEl.textContent = '离线';
+                statusEl.className = 'offline';
+            }
+        }
+
+        // 自动刷新
+        function startAutoRefresh() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            if (autoRefresh) {
+                refreshTimer = setInterval(refresh, 5000);
+            }
+        }
+
+        function toggleAuto() {
+            autoRefresh = !autoRefresh;
+            const btn = document.getElementById('btn-auto');
+            btn.textContent = `⏱ 自动刷新: ${autoRefresh ? '开' : '关'}`;
+            btn.classList.toggle('active', autoRefresh);
+            startAutoRefresh();
+        }
+
+        // 实时查看（WebRTC）
+        let liveMode = false;
+        let liveDevice = null;
+
+        async function toggleRealtime() {
+            const btn = document.getElementById('btn-realtime');
+            const sel = document.getElementById('device-select');
+            const dev = sel ? sel.value : '';
+            if (!dev) { alert('请先选择设备'); return; }
+
+            if (!liveMode) {
+                // 开启实时
+                liveMode = true;
+                liveDevice = dev;
+                btn.textContent = '📹 实时查看中（点击关闭）';
+                btn.classList.add('active');
+                try { await fetch(`/api/live/start?device=${encodeURIComponent(dev)}`, { method: 'POST' }); } catch(e) {}
+                // 在最新截图区域显示 MJPEG 流
+                const img = document.getElementById('current-img');
+                img.src = `/api/live/stream?device=${encodeURIComponent(dev)}&fps=1`;
+            } else {
+                // 关闭实时
+                liveMode = false;
+                btn.textContent = '📹 实时查看';
+                btn.classList.remove('active');
+                try { await fetch(`/api/live/stop?device=${encodeURIComponent(liveDevice)}`, { method: 'POST' }); } catch(e) {}
+                // 恢复为普通截图
+                const img = document.getElementById('current-img');
+                img.src = '';
+                liveDevice = null;
+                refresh();
+            }
+        }
+
+        // 弹窗
+        function showModal(src) {
+            document.getElementById('modal-img').src = src;
+            document.getElementById('modal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('show');
+        }
+
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+            if (e.key === 'r' && !e.ctrlKey && !e.metaKey) refresh();
+        });
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>截图管理后台 · Remote Phone Monitor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            min-height: 100vh;
+        }
+        a { color: #4a9eff; text-decoration: none; }
+
+        /* 顶部工具条（吸顶） */
+        .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #111;
+            border-bottom: 1px solid #222;
+            padding: 12px 18px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        .toolbar .title {
+            color: #4a9eff;
+            font-size: 16px;
+            font-weight: 600;
+            margin-right: 8px;
+            white-space: nowrap;
+        }
+        .toolbar .spacer { flex: 1; }
+        .toolbar label { font-size: 12px; color: #888; margin-right: 4px; }
+        select, input[type="date"] {
+            background: #1a1a1a;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            padding: 7px 10px;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        input[type="date"] { color-scheme: dark; }
+        button {
+            background: #1a1a1a;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            padding: 7px 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        button:hover { background: #242424; border-color: #4a9eff; }
+        button.primary { background: #4a9eff; color: #fff; border-color: #4a9eff; }
+        button.primary:hover { background: #3a8eef; }
+        button.danger { background: #1a1a1a; color: #ff6b6b; border-color: #5a2222; }
+        button.danger:hover { background: #2a0d0d; border-color: #ff6b6b; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #bbb; cursor: pointer; user-select: none; }
+        .switch input { accent-color: #4a9eff; }
+
+        /* 状态/选择信息条 */
+        .infobar {
+            padding: 10px 18px;
+            font-size: 13px;
+            color: #999;
+            display: flex;
+            gap: 18px;
+            align-items: center;
+            border-bottom: 1px solid #1a1a1a;
+            flex-wrap: wrap;
+        }
+        .infobar b { color: #e0e0e0; }
+        .sel-count { color: #ffb347; font-weight: 600; }
+        .live-dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            background: #4caf50; margin-right: 5px; box-shadow: 0 0 6px #4caf50;
+            animation: pulse 1.5s infinite;
+        }
+        .live-off .live-dot { background: #666; box-shadow: none; animation: none; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+        /* 图片网格 */
+        .grid {
+            padding: 18px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 14px;
+        }
+        .card {
+            position: relative;
+            background: #141414;
+            border: 1px solid #222;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: border-color 0.15s, transform 0.1s;
+        }
+        .card:hover { border-color: #4a9eff; }
+        .card.selected { border-color: #ffb347; box-shadow: 0 0 0 1px #ffb347; }
+        .card img.thumb {
+            display: block;
+            width: 100%;
+            height: 170px;
+            object-fit: cover;
+            background: #000;
+            cursor: zoom-in;
+        }
+        .card .meta {
+            padding: 8px 10px;
+            font-size: 11px;
+            color: #999;
+            line-height: 1.5;
+        }
+        .card .meta .time { color: #ccc; }
+        .card .meta .dev { color: #4a9eff; }
+        .card .chk {
+            position: absolute; top: 8px; left: 8px;
+            width: 20px; height: 20px; cursor: pointer; accent-color: #ffb347;
+            background: rgba(0,0,0,0.5); border-radius: 4px;
+        }
+        .card .del {
+            position: absolute; top: 6px; right: 6px;
+            width: 26px; height: 26px; line-height: 24px; text-align: center;
+            background: rgba(0,0,0,0.55); color: #ff6b6b; border: 1px solid #5a2222;
+            border-radius: 5px; cursor: pointer; font-size: 15px; opacity: 0;
+            transition: opacity 0.15s;
+        }
+        .card:hover .del { opacity: 1; }
+        .card .del:hover { background: #2a0d0d; }
+
+        /* 空状态 / 加载 */
+        .empty, .loading-more {
+            grid-column: 1 / -1;
+            text-align: center; color: #666; padding: 40px; font-size: 14px;
+        }
+
+        /* 灯箱 */
+        .lightbox {
+            display: none; position: fixed; inset: 0; z-index: 1000;
+            background: rgba(0,0,0,0.92);
+            justify-content: center; align-items: center; flex-direction: column;
+        }
+        .lightbox.show { display: flex; }
+        .lightbox img { max-width: 92%; max-height: 84vh; border-radius: 8px; }
+        .lightbox .cap { color: #ccc; margin-top: 12px; font-size: 13px; }
+        .lightbox .close {
+            position: absolute; top: 18px; right: 22px; color: #fff;
+            font-size: 30px; cursor: pointer; background: none; border: none;
+        }
+
+        /* 顶部全选 */
+        .sel-all { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #bbb; }
+
+        /* 分页栏 */
+        .pager {
+            position: sticky; bottom: 0; z-index: 90;
+            background: #111;
+            border-top: 1px solid #222;
+            padding: 12px 18px;
+            display: flex; flex-wrap: wrap; gap: 10px;
+            align-items: center; justify-content: center;
+        }
+        .pager-info { font-size: 13px; color: #bbb; }
+        .pager-info b { color: #e0e0e0; }
+        .pager-total { color: #777; }
+        .pager-jump { font-size: 13px; color: #999; display: inline-flex; align-items: center; gap: 6px; }
+        .pager-jump input[type="number"] {
+            width: 64px; background: #1a1a1a; color: #e0e0e0;
+            border: 1px solid #333; padding: 6px 8px; border-radius: 5px; font-size: 13px;
+        }
+        .pager button { background: #1a1a1a; color: #e0e0e0; border: 1px solid #333;
+            padding: 7px 14px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        .pager button:hover:not(:disabled) { background: #242424; border-color: #4a9eff; }
+        .pager button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ---------- 远程配置面板 ---------- */
+        .modal {
+            display: none; position: fixed; inset: 0; z-index: 1200;
+            background: rgba(0,0,0,0.78); overflow: auto;
+        }
+        .modal.show { display: block; }
+        .modal-box {
+            max-width: 840px; margin: 40px auto 60px;
+            background: #121212; border: 1px solid #2a2a2a; border-radius: 10px;
+        }
+        .modal-box h2 {
+            font-size: 16px; padding: 16px 20px; border-bottom: 1px solid #222;
+            color: #4a9eff; display: flex; align-items: center; gap: 10px;
+        }
+        .modal-box h2 .sp { flex: 1; }
+        .modal-close { background: none; border: none; color: #888; font-size: 24px; cursor: pointer; line-height: 1; padding: 0 4px; }
+        .modal-close:hover { color: #fff; background: none; }
+        .modal-body { padding: 14px 20px 0; max-height: 68vh; overflow: auto; }
+
+        .status-strip {
+            background: #161616; border: 1px solid #232323; border-radius: 8px;
+            padding: 10px 14px; font-size: 12px; color: #999;
+            display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+        }
+        .status-strip b { color: #e0e0e0; }
+        .badge {
+            display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px;
+            background: #1e2a1e; color: #7bc47f; border: 1px solid #2d442d;
+        }
+        .badge.warn  { background: #2a2416; color: #ffb347; border-color: #4a3d1a; }
+        .badge.dirty { background: #2a1618; color: #ff8a8a; border-color: #4a2020; }
+
+        .killswitches { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 4px; }
+        .ks {
+            flex: 1; min-width: 190px; background: #171717; border: 1px solid #2a2a2a;
+            border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: all 0.15s;
+        }
+        .ks:hover { border-color: #4a9eff; }
+        .ks.on { border-color: #7a3030; background: #241214; }
+        .ks .ks-title { font-size: 14px; color: #e0e0e0; margin-bottom: 5px; }
+        .ks .ks-desc  { font-size: 11px; color: #777; line-height: 1.45; }
+        .ks.on .ks-title { color: #ff9a9a; }
+        .ks .ks-state { float: right; font-size: 11px; padding: 1px 7px; border-radius: 9px; background: #1e2a1e; color: #7bc47f; }
+        .ks.on .ks-state { background: #3a1e1e; color: #ff8a8a; }
+
+        .grp { margin: 18px 0; }
+        .grp-title {
+            font-size: 13px; color: #7fb8ff; margin-bottom: 8px;
+            padding-bottom: 6px; border-bottom: 1px dashed #262626;
+        }
+        .row { display: flex; align-items: center; gap: 10px; padding: 6px 0; flex-wrap: wrap; }
+        .row > .lb { width: 180px; font-size: 13px; color: #bbb; flex-shrink: 0; }
+        .row input[type="number"], .row input[type="text"] {
+            width: 120px; background: #1a1a1a; color: #e0e0e0; border: 1px solid #333;
+            padding: 6px 8px; border-radius: 5px; font-size: 13px;
+        }
+        .row input[type="time"] {
+            background: #1a1a1a; color: #e0e0e0; border: 1px solid #333;
+            padding: 5px 8px; border-radius: 5px; font-size: 13px; color-scheme: dark;
+        }
+        .row .hint { font-size: 11px; color: #666; line-height: 1.4; }
+        .mini { font-size: 12px; color: #888; }
+
+        .policy { background: #161616; border: 1px solid #262626; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+        .policy-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+        .policy-head input[type="text"] {
+            flex: 1; min-width: 130px; background: #1a1a1a; color: #e0e0e0;
+            border: 1px solid #333; padding: 6px 8px; border-radius: 5px; font-size: 13px;
+        }
+        .policy-head .sp { flex: 1; }
+        .days { display: flex; gap: 4px; }
+        .days span {
+            width: 26px; height: 26px; line-height: 24px; text-align: center;
+            border: 1px solid #333; border-radius: 5px; font-size: 12px;
+            color: #888; cursor: pointer; user-select: none; background: #1a1a1a;
+        }
+        .days span.on { background: #4a9eff; color: #fff; border-color: #4a9eff; }
+        .policy textarea {
+            width: 100%; height: 76px; background: #1a1a1a; color: #e0e0e0;
+            border: 1px solid #333; border-radius: 5px; padding: 8px; font-size: 12px;
+            font-family: ui-monospace, Consolas, monospace; resize: vertical;
+        }
+        .modal-foot {
+            display: flex; gap: 10px; align-items: center; padding: 14px 20px 4px;
+            border-top: 1px solid #1e1e1e; margin-top: 12px; flex-wrap: wrap;
+        }
+        .modal-foot .sp { flex: 1; }
+        .modal-foot .msg { font-size: 12px; color: #7bc47f; }
+        .modal-foot .msg.err { color: #ff8a8a; }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <span class="title">🛠 截图管理后台</span>
+
+        <label>设备</label>
+        <select id="f-device"><option value="">全部设备</option></select>
+
+        <label>日期</label>
+        <input type="date" id="f-date">
+
+        <label>排序</label>
+        <select id="f-sort">
+            <option value="desc">时间：新 → 旧</option>
+            <option value="asc">时间：旧 → 新</option>
+        </select>
+
+        <label>每页数量</label>
+        <select id="f-limit">
+            <option value="20" selected>20 张</option>
+            <option value="50">50 张</option>
+            <option value="100">100 张</option>
+        </select>
+
+        <label>自动刷新</label>
+        <select id="f-interval">
+            <option value="0">关闭</option>
+            <option value="3000">3 秒</option>
+            <option value="5000" selected>5 秒</option>
+            <option value="10000">10 秒</option>
+        </select>
+
+        <button id="btn-refresh" onclick="reload(true)">🔄 刷新</button>
+        <button onclick="openLive()" title="实时查看设备屏幕">📹 实时查看</button>
+        <button onclick="openCfg()" title="远程调整采集/上传参数与定时策略">⚙ 远程配置</button>
+        <button onclick="openDev()" title="管理每台设备的独立配置">📱 设备管理</button>
+        <a class="toolbar" href="/" style="padding:0;border:none;background:none;"><button>📱 监控视图</button></a>
+        <a class="toolbar" href="/logout" style="padding:0;border:none;background:none;"><button>🚪 退出登录</button></a>
+
+        <span class="spacer"></span>
+
+        <label class="sel-all">
+            <input type="checkbox" id="sel-all" onchange="toggleSelectAll(this.checked)"> 全选本页
+        </label>
+        <button class="danger" id="btn-delete" disabled onclick="deleteSelected()">🗑 删除选中 (<span id="sel-n">0</span>)</button>
+    </div>
+
+    <div class="infobar">
+        <span id="live" class="live-dot-wrap"><span class="live-dot"></span>实时</span>
+        <span>共 <b id="total">0</b> 张</span>
+        <span>本页 <b id="loaded">0</b> 张</span>
+        <span class="sel-count">已选 <b id="sel-count">0</b> 张</span>
+        <span id="last-update">—</span>
+    </div>
+
+    <div class="grid" id="grid">
+        <div class="loading-more">加载中…</div>
+    </div>
+
+    <!-- 分页栏 -->
+    <div class="pager" id="pager">
+        <button id="btn-prev" onclick="gotoPage(state.page - 1)">« 上一页</button>
+        <span class="pager-info">
+            第 <b id="cur-page">1</b> / <b id="total-pages">1</b> 页
+            <span class="pager-total">（共 <b id="pager-total">0</b> 张）</span>
+        </span>
+        <button id="btn-next" onclick="gotoPage(state.page + 1)">下一页 »</button>
+        <span class="pager-jump">
+            跳至 <input type="number" id="jump-input" min="1" value="1" onkeydown="if(event.key==='Enter')gotoPage(parseInt(this.value,10))"> 页
+            <button onclick="gotoPage(parseInt(document.getElementById('jump-input').value,10))">前往</button>
+        </span>
+    </div>
+
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <button class="close" onclick="closeLightbox()">✕</button>
+        <img id="lb-img" src="" alt="预览">
+        <div class="cap" id="lb-cap"></div>
+    </div>
+
+    <!-- 远程配置面板 -->
+    <div class="modal" id="cfg-modal" onclick="if(event.target===this)closeCfg()">
+        <div class="modal-box">
+            <h2>
+                <span>⚙ 远程配置</span>
+                <span class="badge" id="cfg-dirty-badge" style="display:none">未保存</span>
+                <span class="sp"></span>
+                <button class="modal-close" onclick="closeCfg()" title="关闭">✕</button>
+            </h2>
+            <div class="modal-body">
+                <div class="status-strip" id="cfg-status">加载中…</div>
+
+                <div class="grp">
+                    <div class="grp-title">一键开关（优先级最高，覆盖定时策略）</div>
+                    <div class="killswitches" id="cfg-kills"></div>
+                </div>
+
+                <div id="cfg-groups"></div>
+
+                <div class="grp">
+                    <div class="grp-title">定时策略（服务端按当前时间匹配后下发）</div>
+                    <div id="cfg-sched"></div>
+                    <button style="margin-top:8px" onclick="addPolicy()">＋ 新增策略</button>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="primary" onclick="saveCfg()">💾 保存并下发</button>
+                <button onclick="loadCfg()">↺ 重新载入</button>
+                <button class="danger" onclick="resetCfg()">恢复默认</button>
+                <span class="sp"></span>
+                <span class="msg" id="cfg-msg"></span>
+                <button onclick="closeCfg()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设备管理面板 -->
+    <div class="modal" id="dev-modal" onclick="if(event.target===this)closeDev()">
+        <div class="modal-box">
+            <h2>
+                <span>📱 设备管理</span>
+                <span class="sp"></span>
+                <button class="modal-close" onclick="closeDev()" title="关闭">✕</button>
+            </h2>
+            <div class="modal-body">
+                <div class="status-strip" id="dev-status">加载中…</div>
+                <div id="dev-list"></div>
+                <div id="dev-editor" style="display:none">
+                    <div class="grp">
+                        <div class="grp-title" id="dev-edit-title">设备配置</div>
+                        <div class="hint" style="margin-bottom:10px">
+                            只填写需要覆盖的字段，未填写的字段使用全局配置。保存后设备在下次通信时生效。
+                        </div>
+                        <div class="row">
+                            <span class="lb">采集间隔（秒）</span>
+                            <input type="number" id="dev-cfg-interval" min="1" max="3600" placeholder="留空=跟随全局">
+                        </div>
+                        <div class="row">
+                            <span class="lb">画质 (1-100)</span>
+                            <input type="number" id="dev-cfg-quality" min="1" max="100" placeholder="留空=跟随全局">
+                        </div>
+                        <div class="row">
+                            <span class="lb">宽度</span>
+                            <input type="number" id="dev-cfg-width" min="64" max="4096" placeholder="留空=跟随全局">
+                        </div>
+                        <div class="row">
+                            <span class="lb">高度</span>
+                            <input type="number" id="dev-cfg-height" min="64" max="4096" placeholder="留空=跟随全局">
+                        </div>
+                        <div class="row">
+                            <span class="lb">息屏暂停</span>
+                            <select id="dev-cfg-screenoff">
+                                <option value="">跟随全局</option>
+                                <option value="true">是</option>
+                                <option value="false">否</option>
+                            </select>
+                        </div>
+                        <div class="row">
+                            <span class="lb">暂停采集</span>
+                            <select id="dev-cfg-paused">
+                                <option value="">跟随全局</option>
+                                <option value="true">是（远程暂停）</option>
+                                <option value="false">否</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grp">
+                        <div class="grp-title">高级：原始 JSON 覆盖</div>
+                        <textarea id="dev-cfg-json" spellcheck="false" rows="6"
+                            placeholder='{"capture":{"interval_sec":30}}'></textarea>
+                        <div class="hint" id="dev-json-err" style="color:#ff8a8a"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <span id="dev-actions">
+                    <button onclick="devRefresh()">🔄 刷新</button>
+                </span>
+                <span id="dev-edit-actions" style="display:none">
+                    <button class="primary" onclick="devSave()">💾 保存设备配置</button>
+                    <button class="danger" onclick="devReset()">恢复全局配置</button>
+                    <button onclick="devBack()">← 返回列表</button>
+                </span>
+                <span class="sp"></span>
+                <span class="msg" id="dev-msg"></span>
+                <button onclick="closeDev()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            device: "",
+            date: "",
+            sort: "desc",
+            intervalMs: 5000,
+            autoTimer: null,
+            limit: 20,         // 每页数量（由“每页数量”控件控制，默认 20，上限 100）
+            page: 1,           // 当前页码（从 1 开始）
+            total: 0,          // 当前筛选条件下的图片总数
+            totalPages: 1,     // 总页数（基于 limit 计算）
+            items: [],         // 当前页的截图（按显示顺序排列）
+            selected: new Set(),  // 已选中的图片 id（跨页保留，便于批量删除）
+            seenIds: new Set(),   // 历史上出现过、用于新图高亮的 id 集合
+            loading: false,
+        };
+
+        // ---------- 工具 ----------
+        function fmtTime(ts) {
+            if (!ts) return "-";
+            const d = new Date(ts);
+            const p = n => String(n).padStart(2, "0");
+            return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ` +
+                   `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+        }
+        function fmtSize(kb) {
+            if (kb == null) return "-";
+            return kb >= 1024 ? (kb/1024).toFixed(2) + " MB" : kb.toFixed(1) + " KB";
+        }
+
+        // ---------- 设备列表 ----------
+        async function loadDevices() {
+            try {
+                const res = await fetch("/api/devices");
+                const devs = await res.json();
+                const sel = document.getElementById("f-device");
+                devs.forEach(d => {
+                    const o = document.createElement("option");
+                    o.value = d.device;
+                    o.textContent = `${d.device} (${d.shot_count})`;
+                    sel.appendChild(o);
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        // ---------- 拉取列表（按页）----------
+        async function fetchShots(page, limit) {
+            const params = new URLSearchParams();
+            if (state.device) params.set("device", state.device);
+            if (state.date)   params.set("date", state.date);
+            params.set("sort", state.sort);
+            params.set("limit", limit);
+            params.set("page", page);
+            const res = await fetch("/api/shots?" + params.toString());
+            if (!res.ok) throw new Error("list failed");
+            return res.json();
+        }
+
+        // 全量重载（筛选/排序/改每页数量/翻页/手动刷新时）
+        // resetPage=true 时回到第 1 页（筛选条件变化时应重置）
+        async function reload(showLoading, resetPage) {
+            if (state.loading) return;
+            if (resetPage) state.page = 1;
+            state.loading = true;
+            if (showLoading) document.getElementById("grid").innerHTML = '<div class="loading-more">加载中…</div>';
+            try {
+                const data = await fetchShots(state.page, state.limit);
+                applyData(data, { flash: false });
+                document.getElementById("last-update").textContent = "更新于 " + fmtTime(Date.now());
+            } catch (e) {
+                document.getElementById("grid").innerHTML = '<div class="empty">加载失败：' + e.message + '</div>';
+            } finally {
+                state.loading = false;
+            }
+        }
+
+        // 把后端返回的数据应用到界面（渲染当前页 + 更新分页/信息）
+        function applyData(data, opts) {
+            state.total = data.total;
+            state.totalPages = data.total_pages || 1;
+            state.page = data.page || state.page;
+            state.items = data.items.slice();
+
+            // 记录所有出现过的 id，用于新图高亮
+            const fresh = [];
+            data.items.forEach(it => {
+                if (!state.seenIds.has(it.id)) { state.seenIds.add(it.id); fresh.push(it.id); }
+            });
+
+            renderAll();
+            updateInfo();
+            if (opts && opts.flash && fresh.length) flashNew(fresh);
+        }
+
+        // 增量轮询：取当前页，刷新内容并高亮真正的新图（保持选择与滚动）
+        async function poll() {
+            if (state.loading) return;
+            try {
+                const data = await fetchShots(state.page, state.limit);
+                // 仅当数据与当前页不一致时才重绘，避免无谓闪烁
+                const sig = data.items.map(i => i.id).join(",");
+                const cur = state.items.map(i => i.id).join(",");
+                state.total = data.total;
+                state.totalPages = data.total_pages || 1;
+                if (sig === cur && data.total === state.total) {
+                    updateInfo();
+                    return;
+                }
+                applyData(data, { flash: true });
+                document.getElementById("last-update").textContent = "更新于 " + fmtTime(Date.now());
+            } catch (e) { /* 网络抖动忽略，下次再试 */ }
+        }
+
+        // ---------- 分页 ----------
+        function gotoPage(p) {
+            p = parseInt(p, 10);
+            if (!Number.isFinite(p)) return;
+            p = Math.max(1, Math.min(p, state.totalPages));
+            if (p === state.page) return;
+            state.page = p;
+            reload(false, false);
+        }
+
+        // ---------- 渲染 ----------
+        function cardHTML(it) {
+            const sel = state.selected.has(it.id) ? " selected" : "";
+            const checked = state.selected.has(it.id) ? "checked" : "";
+            return `<div class="card${sel}" data-id="${it.id}" id="card-${it.id}">
+                <input type="checkbox" class="chk" ${checked} onchange="onCardCheck(${it.id}, this.checked)">
+                <div class="del" title="删除" onclick="deleteOne(${it.id})">✕</div>
+                <img class="thumb" src="${it.url}" loading="lazy"
+                     onclick="openLightbox('${it.url}', '${fmtTime(it.ts)} · ${it.device||""}')">
+                <div class="meta">
+                    <div class="time">${fmtTime(it.ts)}</div>
+                    <div class="dev">${it.device || "-"}</div>
+                    <div>${it.width||"?"}×${it.height||"?"} · ${fmtSize(it.size_kb)}</div>
+                </div>
+            </div>`;
+        }
+
+        function renderAll() {
+            const grid = document.getElementById("grid");
+            if (state.items.length === 0) {
+                grid.innerHTML = '<div class="empty">暂无截图。设备上传后将自动出现在这里。</div>';
+                return;
+            }
+            grid.innerHTML = state.items.map(cardHTML).join("");
+        }
+
+        function flashNew(ids) {
+            ids.forEach(id => {
+                const el = document.getElementById("card-" + id);
+                if (el) {
+                    el.style.boxShadow = "0 0 0 2px #4caf50";
+                    setTimeout(() => { el.style.boxShadow = ""; }, 1200);
+                }
+            });
+        }
+
+        function updateInfo() {
+            document.getElementById("total").textContent = state.total;
+            document.getElementById("loaded").textContent = state.items.length;
+            document.getElementById("sel-count").textContent = state.selected.size;
+            document.getElementById("sel-n").textContent = state.selected.size;
+            document.getElementById("btn-delete").disabled = state.selected.size === 0;
+            // 全选复选框状态
+            const selAll = document.getElementById("sel-all");
+            selAll.checked = state.items.length > 0 && state.selected.size === state.items.length;
+            // 分页栏
+            document.getElementById("cur-page").textContent = state.page;
+            document.getElementById("total-pages").textContent = state.totalPages;
+            document.getElementById("pager-total").textContent = state.total;
+            document.getElementById("btn-prev").disabled = state.page <= 1;
+            document.getElementById("btn-next").disabled = state.page >= state.totalPages;
+            const jump = document.getElementById("jump-input");
+            jump.max = state.totalPages;
+            if (parseInt(jump.value, 10) !== state.page) jump.value = state.page;
+        }
+
+        // ---------- 选择 ----------
+        function onCardCheck(id, checked) {
+            if (checked) state.selected.add(id); else state.selected.delete(id);
+            const card = document.getElementById("card-" + id);
+            if (card) card.classList.toggle("selected", checked);
+            updateInfo();
+        }
+        function toggleSelectAll(checked) {
+            state.items.forEach(it => {
+                if (checked) state.selected.add(it.id); else state.selected.delete(it.id);
+            });
+            renderAll();  // 重渲染以反映选中态
+            updateInfo();
+        }
+
+        // ---------- 删除 ----------
+        async function deleteOne(id) {
+            if (!confirm("确认删除这张截图？此操作不可恢复。")) return;
+            await doDelete([id]);
+        }
+        async function deleteSelected() {
+            const ids = [...state.selected];
+            if (ids.length === 0) return;
+            if (!confirm(`确认删除选中的 ${ids.length} 张截图？此操作不可恢复。`)) return;
+            await doDelete(ids);
+        }
+        async function doDelete(ids) {
+            try {
+                const headers = { "Content-Type": "application/json" };
+                const t = ADMIN_TOKEN; if (t) headers["X-Admin-Token"] = t;
+                const res = await fetch("/api/shots/batch-delete", {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify({ ids })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || ("HTTP " + res.status));
+                }
+                const r = await res.json();
+                // 从状态中移除
+                ids.forEach(id => state.selected.delete(id));
+                state.items = state.items.filter(i => !ids.includes(i.id));
+                state.total = Math.max(0, state.total - (r.deleted ?? ids.length));
+                renderAll();
+                updateInfo();
+                document.getElementById("last-update").textContent = "删除于 " + fmtTime(Date.now());
+            } catch (e) {
+                alert("删除失败：" + e.message);
+            }
+        }
+
+        // ---------- 灯箱 ----------
+        function openLightbox(src, cap) {
+            document.getElementById("lb-img").src = src;
+            document.getElementById("lb-cap").textContent = cap || "";
+            document.getElementById("lightbox").classList.add("show");
+        }
+        function closeLightbox() {
+            document.getElementById("lightbox").classList.remove("show");
+        }
+
+        // ---------- 自动刷新 ----------
+        function applyAuto() {
+            if (state.autoTimer) { clearInterval(state.autoTimer); state.autoTimer = null; }
+            const live = document.getElementById("live");
+            if (state.intervalMs > 0) {
+                state.autoTimer = setInterval(poll, state.intervalMs);
+                live.classList.remove("live-off");
+            } else {
+                live.classList.add("live-off");
+            }
+        }
+
+        // 可选管理令牌（由服务端 ADMIN_TOKEN 决定是否需要；留空表示不设）
+        const ADMIN_TOKEN = "";
+
+        // ======================================================================
+        //  远程配置面板
+        //  配置保存在服务端（全局单份），设备每次上传时捎带版本号比对，
+        //  另按 server.config_poll_sec 做心跳轮询。保存后约一个采集周期生效。
+        // ======================================================================
+        let cfgData = null;      // 当前编辑中的配置对象
+        let cfgVersion = 0;      // 服务端当前版本号
+        let cfgDirty = false;    // 是否有未保存修改
+
+        // 表单结构：p = 配置点分路径，t = 控件类型，min/max 用于前端初步校验
+        const CFG_SCHEMA = [
+            { group: "采集", fields: [
+                { p: "capture.interval_sec", lb: "采集间隔（秒）", t: "num", min: 1, max: 3600,
+                  hint: "两张截图之间的间隔，调到 30 可省约 70% 流量" },
+                { p: "capture.quality", lb: "JPEG 画质", t: "num", min: 1, max: 100,
+                  hint: "30 ≈ 50KB/张，20 ≈ 35KB/张" },
+                { p: "capture.width",  lb: "宽度", t: "num", min: 64, max: 4096 },
+                { p: "capture.height", lb: "高度", t: "num", min: 64, max: 4096 },
+                { p: "capture.pause_on_screen_off", lb: "息屏暂停采集", t: "bool",
+                  hint: "息屏时完全不截图，省电省流" },
+            ]},
+            { group: "蜂窝（移动数据）低画质档", fields: [
+                { p: "capture.cellular_enabled", lb: "启用蜂窝降质档", t: "bool",
+                  hint: "检测到默认路由走流量时自动降分辨率/画质" },
+                { p: "capture.cellular_width",   lb: "蜂窝宽度", t: "num", min: 64, max: 4096 },
+                { p: "capture.cellular_height",  lb: "蜂窝高度", t: "num", min: 64, max: 4096 },
+                { p: "capture.cellular_quality", lb: "蜂窝画质", t: "num", min: 1, max: 100 },
+            ]},
+            { group: "变化检测", fields: [
+                { p: "change_detection.enabled", lb: "启用变化检测", t: "bool",
+                  hint: "关闭则每一帧都上传" },
+                { p: "change_detection.threshold", lb: "相似度阈值", t: "num", min: 0, max: 1, step: 0.01,
+                  hint: "高于该值判定为“画面没变”而跳过上传；0.97 比 0.92 明显省流" },
+            ]},
+            { group: "上传与心跳", fields: [
+                { p: "upload.offline_queue", lb: "离线队列", t: "bool",
+                  hint: "断网或仅 Wi-Fi 时把截图存进队列，恢复后补传" },
+                { p: "upload.backlog_batch", lb: "每周期补传张数", t: "num", min: 1, max: 50,
+                  hint: "积压时加速追平；5 表示每个采集周期最多补传 5 张" },
+                { p: "server.config_poll_sec", lb: "心跳间隔（秒）", t: "num", min: 0, max: 3600,
+                  hint: "0 = 关闭心跳轮询，只靠上传捎带同步（最省流）" },
+            ]},
+        ];
+
+        // 一键开关。inverse 表示“配置值为 false 时该限制生效”
+        const KILLS = [
+            { id: "paused", p: "capture.paused", title: "⏸ 暂停采集", inverse: false,
+              desc: "完全停止截图与上传，优先级高于定时策略", onText: "已暂停", offText: "运行中" },
+            { id: "noupload", p: "upload.enabled", title: "🚫 停止上传", inverse: true,
+              desc: "不上传，但仍存入离线队列，重新打开后补传", onText: "已停止", offText: "上传中" },
+            { id: "wifionly", p: "upload.wifi_only", title: "📶 仅 Wi-Fi 上传", inverse: false,
+              desc: "蜂窝时入队，连上 Wi-Fi 后用补传张数缓慢上传", onText: "仅 Wi-Fi", offText: "不限网络" },
+        ];
+
+        const DAY_NAMES = { 1:"一", 2:"二", 3:"三", 4:"四", 5:"五", 6:"六", 7:"日" };
+
+        // ---------- 小工具 ----------
+        function getP(obj, path) {
+            return path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj);
+        }
+        function setP(obj, path, val) {
+            const ks = path.split(".");
+            let cur = obj;
+            for (let i = 0; i < ks.length - 1; i++) {
+                if (typeof cur[ks[i]] !== "object" || cur[ks[i]] === null) cur[ks[i]] = {};
+                cur = cur[ks[i]];
+            }
+            cur[ks[ks.length - 1]] = val;
+        }
+        function esc(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+        function markDirty() {
+            cfgDirty = true;
+            document.getElementById("cfg-dirty-badge").style.display = "";
+        }
+        function setMsg(text, isErr) {
+            const el = document.getElementById("cfg-msg");
+            el.textContent = text || "";
+            el.className = "msg" + (isErr ? " err" : "");
+        }
+
+        // ---------- 打开 / 关闭 ----------
+        async function openCfg() {
+            document.getElementById("cfg-modal").classList.add("show");
+            setMsg("");
+            await loadCfg();
+        }
+        function closeCfg() {
+            document.getElementById("cfg-modal").classList.remove("show");
+        }
+
+        // ---------- 读取配置 ----------
+        async function loadCfg() {
+            setMsg("载入中…");
+            try {
+                const headers = {};
+                if (ADMIN_TOKEN) headers["X-Admin-Token"] = ADMIN_TOKEN;
+                const res = await fetch("/api/admin/config", { headers });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const d = await res.json();
+                cfgData = d.config || {};
+                cfgVersion = d.version || 0;
+                cfgDirty = false;
+                document.getElementById("cfg-dirty-badge").style.display = "none";
+                renderStatus(d);
+                renderKills();
+                renderGroups();
+                renderPolicies();
+                setMsg("");
+            } catch (e) {
+                setMsg("载入失败：" + e.message, true);
+            }
+        }
+
+        function renderStatus(d) {
+            const devices = d.devices || [];
+            const now = Date.now();
+            const devHtml = devices.length
+                ? devices.map(x => {
+                    const age = x.last_seen ? Math.round((now - x.last_seen) / 1000) : null;
+                    const ago = age == null ? "从未" : (age < 90 ? age + " 秒前" : Math.round(age / 60) + " 分钟前");
+                    const synced = x.applied_version != null && x.applied_version === d.effective_version;
+                    return `<span>${esc(x.device)}：
+                        <b>v${x.applied_version == null ? "?" : x.applied_version}</b>
+                        <span class="badge${synced ? "" : " warn"}">${synced ? "已同步" : "待同步"}</span>
+                        <span class="mini">${ago}</span></span>`;
+                  }).join("　")
+                : '<span class="mini">暂无设备心跳记录</span>';
+
+            const pol = d.active_policy;
+            document.getElementById("cfg-status").innerHTML =
+                `<span>配置版本 <b>v${cfgVersion}</b></span>
+                 <span>当前生效 <b>v${d.effective_version ?? "?"}</b></span>
+                 <span>生效策略 <b>${pol ? esc(pol.name) : "无"}</b></span>
+                 ${devHtml}`;
+        }
+
+        // ---------- 一键开关 ----------
+        function killActive(k) {
+            const v = getP(cfgData, k.p);
+            return k.inverse ? !v : !!v;
+        }
+        function renderKills() {
+            document.getElementById("cfg-kills").innerHTML = KILLS.map(k => {
+                const on = killActive(k);
+                return `<div class="ks${on ? " on" : ""}" onclick="toggleKill('${k.id}')">
+                    <div class="ks-title">${k.title}<span class="ks-state">${on ? k.onText : k.offText}</span></div>
+                    <div class="ks-desc">${k.desc}</div>
+                </div>`;
+            }).join("");
+        }
+        function toggleKill(id) {
+            const k = KILLS.find(x => x.id === id);
+            if (!k) return;
+            // 点击一律翻转底层布尔值；inverse 只影响“哪个值算限制生效”的显示。
+            // 例：upload.enabled 为反向，true=上传中（未生效），false=已停止（生效）。
+            setP(cfgData, k.p, !getP(cfgData, k.p));
+            renderKills();
+            markDirty();
+        }
+
+        // ---------- 分组表单 ----------
+        function renderGroups() {
+            document.getElementById("cfg-groups").innerHTML = CFG_SCHEMA.map(g => `
+                <div class="grp">
+                    <div class="grp-title">${g.group}</div>
+                    ${g.fields.map(f => {
+                        const v = getP(cfgData, f.p);
+                        let ctl;
+                        if (f.t === "bool") {
+                            ctl = `<label class="switch"><input type="checkbox" data-p="${f.p}" data-t="bool"
+                                   ${v ? "checked" : ""} onchange="onFieldChange(this)"><span>启用</span></label>`;
+                        } else {
+                            ctl = `<input type="number" data-p="${f.p}" data-t="num" value="${v == null ? "" : v}"
+                                   ${f.min != null ? `min="${f.min}"` : ""} ${f.max != null ? `max="${f.max}"` : ""}
+                                   ${f.step ? `step="${f.step}"` : ""} oninput="onFieldChange(this)">`;
+                        }
+                        return `<div class="row"><span class="lb">${f.lb}</span>${ctl}
+                                ${f.hint ? `<span class="hint">${f.hint}</span>` : ""}</div>`;
+                    }).join("")}
+                </div>`).join("");
+        }
+        function onFieldChange(el) {
+            const p = el.dataset.p;
+            if (el.dataset.t === "bool") setP(cfgData, p, el.checked);
+            else {
+                const n = parseFloat(el.value);
+                setP(cfgData, p, Number.isFinite(n) ? n : el.value);
+            }
+            markDirty();
+        }
+
+        // ---------- 定时策略 ----------
+        function renderPolicies() {
+            if (!Array.isArray(cfgData.schedule)) cfgData.schedule = [];
+            const list = cfgData.schedule;
+            const host = document.getElementById("cfg-sched");
+            if (!list.length) {
+                host.innerHTML = '<div class="mini">暂无定时策略。点「新增策略」添加，例如夜间 23:00–07:00 降为 30 秒间隔。</div>';
+                return;
+            }
+            host.innerHTML = list.map((p, i) => `
+                <div class="policy">
+                    <div class="policy-head">
+                        <label class="switch"><input type="checkbox" ${p.enabled ? "checked" : ""}
+                               onchange="onPolicyField(${i},'enabled',this.checked)"><span>启用</span></label>
+                        <input type="text" value="${esc(p.name || "")}" placeholder="策略名称"
+                               oninput="onPolicyField(${i},'name',this.value)">
+                        <span class="mini">优先级</span>
+                        <input type="number" style="width:72px" value="${p.priority == null ? 10 : p.priority}"
+                               min="0" max="999" oninput="onPolicyField(${i},'priority',parseInt(this.value,10)||0)">
+                        <span class="sp"></span>
+                        <button class="danger" onclick="delPolicy(${i})">删除</button>
+                    </div>
+                    <div class="row">
+                        <span class="lb">生效时段</span>
+                        <input type="time" value="${esc(p.start || "00:00")}" oninput="onPolicyField(${i},'start',this.value)">
+                        <span class="mini">至</span>
+                        <input type="time" value="${esc(p.end || "00:00")}" oninput="onPolicyField(${i},'end',this.value)">
+                        <span class="hint">起始晚于结束表示跨午夜，如 23:00 → 07:00</span>
+                    </div>
+                    <div class="row">
+                        <span class="lb">星期</span>
+                        <div class="days">${[1,2,3,4,5,6,7].map(d =>
+                            `<span class="${(p.days || []).includes(d) ? "on" : ""}" onclick="toggleDay(${i},${d})">${DAY_NAMES[d]}</span>`
+                        ).join("")}</div>
+                    </div>
+                    <div style="margin-top:8px">
+                        <div class="mini" style="margin-bottom:4px">覆盖参数（JSON，键为点分路径）</div>
+                        <textarea spellcheck="false" oninput="onPolicyOverrides(${i},this.value)">${esc(JSON.stringify(p.overrides || {}, null, 2))}</textarea>
+                        <div class="hint" id="ov-err-${i}" style="color:#ff8a8a"></div>
+                    </div>
+                </div>`).join("");
+        }
+        function onPolicyField(i, key, val) {
+            cfgData.schedule[i][key] = val;
+            markDirty();
+        }
+        function toggleDay(i, d) {
+            const p = cfgData.schedule[i];
+            const days = Array.isArray(p.days) ? p.days.slice() : [];
+            const at = days.indexOf(d);
+            if (at >= 0) days.splice(at, 1); else days.push(d);
+            p.days = days.sort((a, b) => a - b);
+            renderPolicies();
+            markDirty();
+        }
+        function onPolicyOverrides(i, text) {
+            const errEl = document.getElementById("ov-err-" + i);
+            try {
+                const obj = JSON.parse(text);
+                if (obj === null || typeof obj !== "object" || Array.isArray(obj)) throw new Error("需为 JSON 对象");
+                cfgData.schedule[i].overrides = obj;
+                if (errEl) errEl.textContent = "";
+                markDirty();
+            } catch (e) {
+                if (errEl) errEl.textContent = "JSON 无效：" + e.message + "（未应用）";
+            }
+        }
+        function addPolicy() {
+            cfgData.schedule.push({
+                name: "新策略", enabled: false, priority: 10,
+                days: [1,2,3,4,5,6,7], start: "23:00", end: "07:00",
+                overrides: { "capture.interval_sec": 30, "capture.quality": 20 },
+            });
+            renderPolicies();
+            markDirty();
+        }
+        function delPolicy(i) {
+            if (!confirm("删除该策略？")) return;
+            cfgData.schedule.splice(i, 1);
+            renderPolicies();
+            markDirty();
+        }
+
+        // ---------- 保存 / 重置 ----------
+        async function saveCfg() {
+            setMsg("保存中…");
+            try {
+                const headers = { "Content-Type": "application/json" };
+                if (ADMIN_TOKEN) headers["X-Admin-Token"] = ADMIN_TOKEN;
+                const res = await fetch("/api/admin/config", {
+                    method: "PUT", headers, body: JSON.stringify({ config: cfgData })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || ("HTTP " + res.status));
+                }
+                const r = await res.json();
+                cfgDirty = false;
+                document.getElementById("cfg-dirty-badge").style.display = "none";
+                setMsg("已保存 v" + r.version + "，约一个采集周期后生效");
+                await loadCfg();   // 回读服务端钳制后的最终值
+            } catch (e) {
+                setMsg("保存失败：" + e.message, true);
+            }
+        }
+        async function resetCfg() {
+            if (!confirm("恢复默认配置？当前的采集参数与定时策略会被覆盖。")) return;
+            setMsg("恢复中…");
+            try {
+                const headers = {};
+                if (ADMIN_TOKEN) headers["X-Admin-Token"] = ADMIN_TOKEN;
+                const res = await fetch("/api/admin/config/reset", { method: "POST", headers });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                await loadCfg();
+                setMsg("已恢复默认配置");
+            } catch (e) {
+                setMsg("恢复失败：" + e.message, true);
+            }
+        }
+
+        // ---------- 事件绑定 ----------
+        document.getElementById("f-device").onchange = e => { state.device = e.target.value; reload(true, true); };
+        document.getElementById("f-date").onchange   = e => { state.date = e.target.value; reload(true, true); };
+        document.getElementById("f-sort").onchange   = e => { state.sort = e.target.value; reload(true, true); };
+        document.getElementById("f-limit").onchange  = e => { state.limit = parseInt(e.target.value, 10); reload(true, true); };
+        document.getElementById("f-interval").onchange = e => { state.intervalMs = parseInt(e.target.value, 10); applyAuto(); };
+
+        document.addEventListener("keydown", e => {
+            if (e.key !== "Escape") return;
+            const devModal = document.getElementById("dev-modal");
+            const cfgModal = document.getElementById("cfg-modal");
+            if (devModal.classList.contains("show")) {
+                closeDev();
+            } else if (cfgModal.classList.contains("show")) {
+                if (cfgDirty && !confirm("有未保存的修改，确定关闭？")) return;
+                closeCfg();
+            } else {
+                closeLightbox();
+            }
+        });
+
+        // ---------- 启动 ----------
+        (async function init() {
+            await loadDevices();
+            await reload(true, true);
+            applyAuto();
+        })();
+
+        // ========== 设备管理 ==========
+        let devCurrentId = null;
+
+        function devSetMsg(text, isErr) {
+            const el = document.getElementById("dev-msg");
+            el.textContent = text || "";
+            el.className = "msg" + (isErr ? " err" : "");
+        }
+
+        async function openDev() {
+            document.getElementById("dev-modal").classList.add("show");
+            devSetMsg("");
+            devShowList();
+            await devLoadList();
+        }
+        function closeDev() {
+            document.getElementById("dev-modal").classList.remove("show");
+            devCurrentId = null;
+        }
+
+        function devShowList() {
+            document.getElementById("dev-list").style.display = "";
+            document.getElementById("dev-editor").style.display = "none";
+            document.getElementById("dev-actions").style.display = "";
+            document.getElementById("dev-edit-actions").style.display = "none";
+            devCurrentId = null;
+        }
+        function devShowEditor() {
+            document.getElementById("dev-list").style.display = "none";
+            document.getElementById("dev-editor").style.display = "";
+            document.getElementById("dev-actions").style.display = "none";
+            document.getElementById("dev-edit-actions").style.display = "";
+        }
+
+        async function devLoadList() {
+            document.getElementById("dev-status").textContent = "加载中…";
+            try {
+                const headers = {};
+                if (ADMIN_TOKEN) headers["X-Admin-Token"] = ADMIN_TOKEN;
+                const res = await fetch("/api/admin/config", { headers });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const d = await res.json();
+                const devices = d.devices || [];
+                const now = Date.now();
+                if (!devices.length) {
+                    document.getElementById("dev-list").innerHTML = '<div class="mini" style="padding:20px 0">暂无设备连接。设备启动后会自动注册。</div>';
+                    document.getElementById("dev-status").textContent = "暂无设备";
+                    return;
+                }
+                document.getElementById("dev-status").textContent = `共 ${devices.length} 台设备`;
+                document.getElementById("dev-list").innerHTML = devices.map(x => {
+                    const age = x.last_seen ? Math.round((now - x.last_seen) / 1000) : null;
+                    const ago = age == null ? "从未连接" : (age < 90 ? age + " 秒前" : Math.round(age / 60) + " 分钟前");
+                    const online = age != null && age < 120;
+                    const hasCustom = x.custom_config && Object.keys(x.custom_config).length > 0;
+                    const ver = x.applied_version == null ? "?" : x.applied_version;
+                    const synced = x.applied_version != null && x.applied_version === d.effective_version;
+                    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #1a1a1a">
+                        <span style="width:10px;height:10px;border-radius:50%;background:${online ? '#4caf50' : '#555'};flex-shrink:0"></span>
+                        <span style="flex:1;font-weight:600;font-size:14px">${esc(x.device)}</span>
+                        <span class="badge${synced ? "" : " warn"}" style="font-size:11px">${synced ? "已同步" : "v" + ver}</span>
+                        ${hasCustom ? '<span class="badge" style="background:#2a1a00;color:#ffb347;font-size:11px">独立配置</span>' : ""}
+                        <span class="mini">${ago}</span>
+                        <span class="mini">${x.shot_count || 0} 张</span>
+                        <button onclick="devEdit('${esc(x.device)}')" style="font-size:12px;padding:4px 10px">编辑配置</button>
+                    </div>`;
+                }).join("");
+            } catch (e) {
+                document.getElementById("dev-status").textContent = "加载失败";
+                document.getElementById("dev-list").innerHTML = '<div class="mini" style="color:#ff8a8a">' + esc(e.message) + '</div>';
+            }
+        }
+
+        function devRefresh() { devLoadList(); }
+
+        async function devEdit(deviceId) {
+            devCurrentId = deviceId;
+            document.getElementById("dev-edit-title").textContent = "设备配置：" + deviceId;
+            devSetMsg("");
+            devShowEditor();
+            // 清空表单
+            document.getElementById("dev-cfg-interval").value = "";
+            document.getElementById("dev-cfg-quality").value = "";
+            document.getElementById("dev-cfg-width").value = "";
+            document.getElementById("dev-cfg-height").value = "";
+            document.getElementById("dev-cfg-screenoff").value = "";
+            document.getElementById("dev-cfg-paused").value = "";
+            document.getElementById("dev-cfg-json").value = "";
+            document.getElementById("dev-json-err").textContent = "";
+            // 加载设备现有配置
+            try {
+                const headers = {};
+                if (ADMIN_TOKEN) headers["X-Admin-Token"] = ADMIN_TOKEN;
+                const res = await fetch(`/api/admin/devices/${encodeURIComponent(deviceId)}/config`, { headers });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const d = await res.json();
+                const cfg = d.custom_config || {};
+                // 填充表单
+                if (cfg.capture) {
+                    if (cfg.capture.interval_sec != null) document.getElementById("dev-cfg-interval").value = cfg.capture.interval_sec;
+                    if (cfg.capture.quality != null) document.getElementById("dev-cfg-quality").value = cfg.capture.quality;
+                    if (cfg.capture.width != null) document.getElementById("dev-cfg-width").value = cfg.capture.width;
+                    if (cfg.capture.height != null) document.getElementById("dev-cfg-height").value = cfg.capture.height;
+                    if (cfg.capture.pause_on_screen_off != null) document.getElementById("dev-cfg-screenoff").value = String(cfg.capture.pause_on_screen_off);
+                    if (cfg.capture.paused != null) document.getElementById("dev-cfg-paused").value = String(cfg.capture.paused);
+                }
+                // 原始 JSON（排除已经在表单里展示的字段）
+                const raw = JSON.stringify(cfg, null, 2);
+                document.getElementById("dev-cfg-json").value = raw === "{}" ? "" : raw;
+                devSetMsg(d.custom_config ? "已加载设备独立配置" : "该设备暂无独立配置（使用全局配置）");
+            } catch (e) {
+                devSetMsg("加载失败：" + e.message, true);
+            }
+        }
+
+        function devBack() {
+            devShowList();
+            devLoadList();
+        }
+
+        function devCollectConfig() {
+            const cfg = {};
+            const interval = document.getElementById("dev-cfg-interval").value;
+            const quality = document.getElementById("dev-cfg-quality").value;
+            const width = document.getElementById("dev-cfg-width").value;
+            const height = document.getElementById("dev-cfg-height").value;
+            const screenoff = document.getElementById("dev-cfg-screenoff").value;
+            const paused = document.getElementById("dev-cfg-paused").value;
+            const jsonText = document.getElementById("dev-cfg-json").value.trim();
+
+            // 从表单收集
+            const capture = {};
+            if (interval) capture.interval_sec = parseInt(interval, 10);
+            if (quality) capture.quality = parseInt(quality, 10);
+            if (width) capture.width = parseInt(width, 10);
+            if (height) capture.height = parseInt(height, 10);
+            if (screenoff !== "") capture.pause_on_screen_off = screenoff === "true";
+            if (paused !== "") capture.paused = paused === "true";
+            if (Object.keys(capture).length > 0) cfg.capture = capture;
+
+            // 合并高级 JSON
+            if (jsonText) {
+                try {
+                    const extra = JSON.parse(jsonText);
+                    if (extra === null || typeof extra !== "object" || Array.isArray(extra)) throw new Error("需为 JSON 对象");
+                    document.getElementById("dev-json-err").textContent = "";
+                    // 深度合并（表单值优先）
+                    for (const [k, v] of Object.entries(extra)) {
+                        if (k === "capture" && cfg.capture && typeof v === "object") {
+                            cfg.capture = { ...v, ...cfg.capture };
+                        } else {
+                            cfg[k] = v;
+                        }
+                    }
+                } catch (e) {
+                    document.getElementById("dev-json-err").textContent = "JSON 无效：" + e.message;
+                    return null;
+                }
+            }
+            return cfg;
+        }
+
+        async function devSave() {
+            if (!devCurrentId) return;
+            const cfg = devCollectConfig();
+            if (cfg === null) return;
+            if (Object.keys(cfg).length === 0) {
+                devSetMsg("没有填写任何覆盖字段", true);
+                return;
+            }
+            devSetMsg("保存中…");
+            try {
+                const headers = { "Content-Type": "application/json" };
+                if (ADMIN_TOKEN) headers["X-Admin-Token"] = ADMIN_TOKEN;
+                const res = await fetch(`/api/admin/devices/${encodeURIComponent(devCurrentId)}/config`, {
+                    method: "PUT", headers, body: JSON.stringify({ config: cfg })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || ("HTTP " + res.status));
+                }
+                const r = await res.json();
+                devSetMsg("已保存 v" + r.version + "，设备下次通信时生效");
+            } catch (e) {
+                devSetMsg("保存失败：" + e.message, true);
+            }
+        }
+
+        async function devReset() {
+            if (!devCurrentId) return;
+            if (!confirm(`将 ${devCurrentId} 恢复为全局配置？其独立配置会被删除。`)) return;
+            devSetMsg("恢复中…");
+            try {
+                const headers = {};
+                if (ADMIN_TOKEN) headers["X-Admin-Token"] = ADMIN_TOKEN;
+                const res = await fetch(`/api/admin/devices/${encodeURIComponent(devCurrentId)}/config`, {
+                    method: "DELETE", headers
+                });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                devSetMsg("已恢复全局配置");
+                // 清空表单
+                document.getElementById("dev-cfg-interval").value = "";
+                document.getElementById("dev-cfg-quality").value = "";
+                document.getElementById("dev-cfg-width").value = "";
+                document.getElementById("dev-cfg-height").value = "";
+                document.getElementById("dev-cfg-screenoff").value = "";
+                document.getElementById("dev-cfg-paused").value = "";
+                document.getElementById("dev-cfg-json").value = "";
+            } catch (e) {
+                devSetMsg("恢复失败：" + e.message, true);
+            }
+        }
+
+        // ========== 实时查看 ==========
+        let liveDevice = null;
+        let liveTimer = null;
+
+        async function openLive() {
+            // 获取当前选中的设备
+            const sel = document.getElementById("f-device");
+            const dev = sel ? sel.value : "";
+            if (!dev) {
+                alert("请先在设备下拉框中选择一台设备");
+                return;
+            }
+            liveDevice = dev;
+
+            // 通知 agent 开启实时模式
+            try {
+                await fetch(`/api/live/start?device=${encodeURIComponent(dev)}`, { method: "POST" });
+            } catch(e) {}
+
+            // 显示模态框 + MJPEG 流
+            const modal = document.getElementById("live-modal");
+            const img = document.getElementById("live-img");
+            document.getElementById("live-title").textContent = "📹 实时查看：" + dev;
+            img.src = `/api/live/stream?device=${encodeURIComponent(dev)}&fps=1`;
+            modal.classList.add("show");
+        }
+
+        async function closeLive() {
+            const modal = document.getElementById("live-modal");
+            const img = document.getElementById("live-img");
+            modal.classList.remove("show");
+            img.src = "";  // 停止 MJPEG 流
+
+            // 通知 agent 关闭实时模式
+            if (liveDevice) {
+                try {
+                    await fetch(`/api/live/stop?device=${encodeURIComponent(liveDevice)}`, { method: "POST" });
+                } catch(e) {}
+                liveDevice = null;
+            }
+        }
+
+        // ESC 关闭实时查看
+        document.addEventListener("keydown", e => {
+            if (e.key === "Escape") {
+                const liveModal = document.getElementById("live-modal");
+                const devModal = document.getElementById("dev-modal");
+                const cfgModal = document.getElementById("cfg-modal");
+                if (liveModal && liveModal.classList.contains("show")) {
+                    closeLive();
+                } else if (devModal && devModal.classList.contains("show")) {
+                    closeDev();
+                } else if (cfgModal && cfgModal.classList.contains("show")) {
+                    closeCfg();
+                }
+            }
+        });
+    </script>
+
+    <!-- 实时查看模态框 -->
+    <div class="modal" id="live-modal" onclick="if(event.target===this)closeLive()">
+        <div style="position:absolute;top:12px;left:16px;color:#e0e0e0;font-size:16px;font-weight:600;z-index:1001" id="live-title">📹 实时查看</div>
+        <button onclick="closeLive()" style="position:absolute;top:12px;right:16px;z-index:1001;background:rgba(0,0,0,0.6);color:#fff;border:1px solid #555;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">✕ 关闭</button>
+        <div style="display:flex;justify-content:center;align-items:center;width:100%;height:100%">
+            <img id="live-img" style="max-width:95%;max-height:90vh;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.5)" alt="实时画面加载中...">
+        </div>
+    </div>
+
+</body>
+</html>

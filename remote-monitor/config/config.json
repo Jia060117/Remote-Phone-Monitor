@@ -1,0 +1,44 @@
+{
+  "device_id": "DEVICE_A",
+  "server": {
+    "url": "",
+    "urls": "https://monitor.example.com",
+    "token": "CHANGE_ME_DEVICE_TOKEN",
+    "upload_path": "/api/upload",
+    "timeout_ms": 10000,
+    "config_poll_sec": 300
+  },
+  "capture": {
+    "backend": "screencap",
+    "interval_sec": 5,
+    "format": "jpeg",
+    "quality": 60,
+    "width": 720,
+    "height": 1280,
+    "pause_on_screen_off": true,
+    "cellular_enabled": true,
+    "cellular_width": 480,
+    "cellular_height": 1066,
+    "cellular_quality": 20,
+    "paused": false
+  },
+  "change_detection": {
+    "enabled": true,
+    "algorithm": "ahash",
+    "threshold": 0.92
+  },
+  "upload": {
+    "retry": 3,
+    "retry_delay_sec": 5,
+    "offline_queue": true,
+    "queue_dir": "/data/adb/modules/remote-monitor/queue",
+    "max_queue_mb": 200,
+    "backlog_batch": 5,
+    "enabled": true,
+    "wifi_only": false
+  },
+  "logging": {
+    "level": "info",
+    "path": "/data/adb/modules/remote-monitor/logs/agent.log"
+  }
+}

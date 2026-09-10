@@ -1,0 +1,53 @@
+{
+  "device_id": "DEVICE_A",
+  "server": {
+    "url": "http://127.0.0.1:8000",
+    "urls": "",
+    "token": "CHANGE_ME_DEVICE_TOKEN",
+    "upload_path": "/api/upload",
+    "timeout_ms": 10000,
+    "config_poll_sec": 300
+  },
+  "capture": {
+    "backend": "testpattern",
+    "interval_sec": 5,
+    "format": "jpeg",
+    "quality": 60,
+    "width": 320,
+    "height": 640,
+    "pause_on_screen_off": true,
+    "cellular_enabled": true,
+    "cellular_width": 320,
+    "cellular_height": 640,
+    "cellular_quality": 20,
+    "paused": false
+  },
+  "change_detection": {
+    "enabled": true,
+    "algorithm": "ahash",
+    "threshold": 0.92
+  },
+  "upload": {
+    "retry": 3,
+    "retry_delay_sec": 5,
+    "offline_queue": true,
+    "queue_dir": "./queue",
+    "max_queue_mb": 200,
+    "backlog_batch": 5,
+    "enabled": true,
+    "wifi_only": false
+  },
+  "webrtc": {
+    "enabled": false,
+    "signaling_url": "wss://your-server.example.com/ws",
+    "turn": {
+      "url": "turn:...",
+      "username": "...",
+      "credential": "..."
+    }
+  },
+  "logging": {
+    "level": "debug",
+    "path": "./logs/agent.log"
+  }
+}

@@ -1,0 +1,48 @@
+# Secrets and deployment-specific configuration
+.env
+.env.*
+!.env.example
+server/server.json
+server/tokens.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime data
+server/shots.db*
+server/store/
+**/logs/
+**/queue/
+*.log
+.perf/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Native builds and packaged artifacts
+**/build/
+**/build-*/
+**/bin/
+remote-agent/deps/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.bin
+*.zip
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
