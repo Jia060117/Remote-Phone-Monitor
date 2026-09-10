@@ -1,5 +1,7 @@
 # Remote Phone Monitor
 
+[English](README_EN.md) | **简体中文**
+
 一个面向自有或已获明确授权 Android 设备的自托管屏幕采样系统。Native Agent
 定时采集画面，经 HTTPS 上传到 FastAPI 服务；浏览器端可查看最新截图、时间轴、
 存储统计和远程配置。
