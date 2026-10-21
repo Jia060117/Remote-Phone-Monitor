@@ -1,8 +1,8 @@
-# Remote Phone Monitor
+# Android 远程屏幕采样系统
 
-[English](README_EN.md) | **简体中文**
+**简体中文（默认）** | [English](README_EN.md)
 
-一个面向自有或已获明确授权 Android 设备的自托管屏幕采样系统。Native Agent
+一个面向自有或已获明确授权 Android 设备的自托管屏幕采样系统。原生采集端
 定时采集画面，经 HTTPS 上传到 FastAPI 服务；浏览器端可查看最新截图、时间轴、
 存储统计和远程配置。
 
@@ -12,20 +12,20 @@
 
 ## 功能
 
-- Android Native Agent（C++17）与 KernelSU/Magisk 模块
+- Android 原生采集端（C++17）与 KernelSU/Magisk 模块
 - HTTPS 上传、变化检测、离线队列和网络恢复补传
 - 息屏暂停、蜂窝低画质、仅 Wi-Fi 上传等节能/流量策略
 - FastAPI + SQLite 服务端
-- 登录保护的 Dashboard、管理后台和实时预览
+- 登录保护的网页控制台、管理后台和实时预览
 - 按设备下发配置与定时策略
 - 自动清理超期或超出容量限制的截图
 
 ## 项目结构
 
 ```text
-remote-agent/        C++ Agent 源码、CMake 构建与示例配置
+remote-agent/        C++ 采集端源码、CMake 构建与示例配置
 remote-monitor/      KernelSU/Magisk 模块模板
-server/              FastAPI 服务、Web UI 与回归测试
+server/              FastAPI 服务、网页界面与回归测试
 docs/design.md       架构设计
 BUILD.md             完整构建与部署说明
 SECURITY.md          安全与隐私部署要求
@@ -44,7 +44,7 @@ THIRD_PARTY_NOTICES.md  第三方依赖许可证说明
 python initialize.py --server-url https://你的服务地址
 ```
 
-初始化程序会在本机生成唯一设备 token、随机管理密码和会话密钥，并输出已写入相同
+初始化程序会在本机生成唯一设备令牌、随机管理密码和会话密钥，并输出已写入相同
 鉴权信息的最终可安装模块。公开 Release 中不包含所有用户共用的固定密钥。
 
 ### 1. 启动服务端
@@ -90,7 +90,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 访问 `http://127.0.0.1:8000`。面向公网部署时，请使用 HTTPS 反向代理，不要直接
 暴露开发服务器。
 
-### 2. 配置并构建 Agent
+### 2. 配置并构建采集端
 
 复制并编辑示例配置：
 
@@ -105,7 +105,7 @@ cp config.example.json config.json
 - `server.urls`：你的 HTTPS 服务地址。
 - `server.token`：对应的设备令牌。
 
-PC 测试构建默认使用合成画面，不读取真实屏幕：
+电脑端测试构建默认使用合成画面，不读取真实屏幕：
 
 ```bash
 cmake -S . -B build
@@ -159,7 +159,7 @@ cd remote-monitor
 ## 安全与隐私
 
 - 服务端默认拒绝未携带有效设备令牌的上传和配置请求。
-- Dashboard、截图、设备信息和管理 API 默认要求管理员登录。
+- 网页控制台、截图、设备信息和管理 API 默认要求管理员登录。
 - TLS 证书不可验证时客户端会终止 HTTPS 请求，不会静默降级。
 - 真实配置、截图、数据库、日志、队列和二进制不会被 Git 跟踪。
 - 建议使用防火墙、HTTPS 反向代理、最小权限账户与短期数据保留策略。
